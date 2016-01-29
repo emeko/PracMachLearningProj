@@ -1,0 +1,121 @@
+---
+title: "Practical Machine Learning Project Writeup - Predicting Exercise Performance"
+author: "emeko"
+date: "January 29, 2016"
+output: pdf_document
+---
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Loading libraries
+
+```{r,message=FALSE,warning=FALSE}
+ 
+library(caret)
+library(dplyr)
+library(randomForest)
+
+```
+
+## Get, Load and Clean Data
+The following code chunk will download the source files from the URLs provided, read the CSV files and clean the data as we read it in by excluding NAs and zero values.
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+
+url_train <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url_train, "./train.csv", method = "curl")
+download.file(url_test, "./test.csv", method = "curl")
+train <- read.csv("./train.csv", na.strings = c("", "NA", "#DIV/0!"))
+test <- read.csv("./test.csv", na.strings = c("", "NA", "#DIV/0!"))  
+
+```
+
+## Building our model
+Let's partition the source training data into a training and test dataset.  We are partitioning the data as 70% training and 30% test.
+
+```{r}
+## create the training set
+table(train$classe)
+set.seed(999)
+inTrain <- createDataPartition(train$classe, p = 0.7, list = FALSE)
+training <- train[inTrain,]
+testing <- train[-inTrain,]
+```
+
+## Refine the training data
+
+Initial analysis of the data showed that there are features which are not likely to contribute to the accuracy of the model. Using the nearZeroVar() function, remove these features from our training set.
+```{r}
+## remove features that are not likely to contribute to the model
+nsv <- nearZeroVar(training)
+training <- training[, -nsv]
+training <- select(training, -(X:num_window))
+training<-training[,colSums(is.na(training))/nrow(training) < 0.50]
+```
+
+## Training the model
+Let's use randomForest to train the model. We choose randomForest for the follwing reasons.
+
+- Accuracy
+
+- Runs efficiently on large data bases
+
+- Handles thousands of input variables without variable deletion
+
+- Gives estimates of what variables are important in the classification
+
+- Generates an internal unbiased estimate of the generalization error as the forest building progresses
+
+- Provides effective methods for estimating missing data
+
+- Maintains accuracy when a large proportion of the data are missing
+
+- Provides methods for balancing error in class population unbalanced data sets
+
+- Generated forests can be saved for future use on other data
+
+- Prototypes are computed that give information about the relation between the variables and the classification.
+
+- Computes proximities between pairs of cases that can be used in clustering, locating outliers, or (by scaling) give interesting views of the data
+
+- Capabilities of the above can be extended to unlabeled data, leading to unsupervised clustering, data views and outlier detection
+
+- Offers an experimental method for detecting variable interactions
+
+```{r}
+## Training the model
+RFmodel <- randomForest(classe~., data = training, method = "class")
+```
+
+## Use cross validation on our trained  model to determine the accuracy.
+```{r}
+## Cross validate the model
+myPredict <- predict(RFmodel, testing, type = "class")
+confusionMatrix(myPredict, testing$classe)
+```
+Based on the cross validation performed, the model has an accuracy of 99.54% with confidence intervals (0.9933, 0.997). This is a very high accuracy rate and based on that accuracy, one would expect an out of sample error rate of 0.46% (calulated as 1 - .9954 = 0.0046).
+
+## Run predictions against the source test set
+
+Using our model against the source test set, let's generate the results for 20 tests.
+```{r}
+## Run our prediction against the test set
+pResults <- predict(RFmodel, test, type = "class")
+pResults
+```
+
+## Submit results
+Submitting the result above to the project quiz yields a 20/20 result.
+
+
+
